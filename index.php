@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculator_type'])) {
         if ($height_ft === false || $height_ft <= 0) {
             $bmi_errors[] = 'Please enter a valid height in feet.';
         }
-        if ($height_in === false) { 
+        if ($height_in === false) {
             $bmi_errors[] = 'Please enter a valid number of inches (0-11).';
         }
         if ($weight_lbs === false || $weight_lbs <= 0) {
@@ -97,10 +97,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculator_type'])) {
             }
 
             $tdee = $bmr * $activity_level;
-            
+
             $bmr = round($bmr);
             $tdee = round($tdee);
-            
+
             $maintain_weight = $tdee;
             $mild_loss = $tdee - 250;
             $weight_loss = $tdee - 500;
@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculator_type'])) {
             ";
         }
     }
-    
+
     // ===================================================================
     // MACRONUTRIENT PLANNER LOGIC
     // ===================================================================
@@ -135,56 +135,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculator_type'])) {
         if (!$tdee_calories || $tdee_calories <= 0) {
             $macro_errors[] = 'Please enter a valid daily calorie goal.';
         }
-        if (empty($macro_plan) || !in_array($macro_plan, ['balanced', 'low-carb', 'high-protein', 'high-carb'])) {
+        if (empty($macro_plan) || !in_array($macro_plan, ['balanced', 'low-carb', 'high-protein', 'high-carb', 'custom'])) {
             $macro_errors[] = 'Please select a macronutrient plan.';
         }
 
         if (empty($macro_errors)) {
             $ratios = [];
-            switch ($macro_plan) {
-                case 'low-carb':
-                    $ratios = ['carbs' => 0.20, 'protein' => 0.40, 'fat' => 0.40];
-                    break;
-                case 'high-protein':
-                    $ratios = ['carbs' => 0.30, 'protein' => 0.40, 'fat' => 0.30];
-                    break;
-                case 'high-carb':
-                    $ratios = ['carbs' => 0.60, 'protein' => 0.20, 'fat' => 0.20];
-                    break;
-                case 'balanced':
-                default:
-                    $ratios = ['carbs' => 0.40, 'protein' => 0.30, 'fat' => 0.30];
-                    break;
+
+            if ($macro_plan === 'custom') {
+                $protein_percent = filter_input(INPUT_POST, 'protein_percent', FILTER_VALIDATE_INT, ["options" => ["min_range" => 0, "max_range" => 100]]);
+                $carb_percent = filter_input(INPUT_POST, 'carb_percent', FILTER_VALIDATE_INT, ["options" => ["min_range" => 0, "max_range" => 100]]);
+                $fat_percent = filter_input(INPUT_POST, 'fat_percent', FILTER_VALIDATE_INT, ["options" => ["min_range" => 0, "max_range" => 100]]);
+
+                if ($protein_percent === false || $carb_percent === false || $fat_percent === false) {
+                     $macro_errors[] = 'Please enter valid whole numbers for all percentages.';
+                } elseif (($protein_percent + $carb_percent + $fat_percent) !== 100) {
+                    $macro_errors[] = 'Your custom percentages must add up to exactly 100.';
+                } else {
+                     $ratios = [
+                        'protein' => $protein_percent / 100,
+                        'carbs'   => $carb_percent / 100,
+                        'fat'     => $fat_percent / 100
+                     ];
+                }
+            } else {
+                // Handle Pre-defined Plans
+                switch ($macro_plan) {
+                    case 'low-carb':
+                        $ratios = ['carbs' => 0.20, 'protein' => 0.40, 'fat' => 0.40];
+                        break;
+                    case 'high-protein':
+                        $ratios = ['carbs' => 0.30, 'protein' => 0.40, 'fat' => 0.30];
+                        break;
+                    case 'high-carb':
+                        $ratios = ['carbs' => 0.60, 'protein' => 0.20, 'fat' => 0.20];
+                        break;
+                    case 'balanced':
+                    default:
+                        $ratios = ['carbs' => 0.40, 'protein' => 0.30, 'fat' => 0.30];
+                        break;
+                }
             }
 
-            $carb_calories = $tdee_calories * $ratios['carbs'];
-            $protein_calories = $tdee_calories * $ratios['protein'];
-            $fat_calories = $tdee_calories * $ratios['fat'];
+            // If we still have no errors and have a valid ratio set, calculate.
+            if (empty($macro_errors) && !empty($ratios)) {
+                $carb_calories = $tdee_calories * $ratios['carbs'];
+                $protein_calories = $tdee_calories * $ratios['protein'];
+                $fat_calories = $tdee_calories * $ratios['fat'];
 
-            $carb_grams = round($carb_calories / 4);
-            $protein_grams = round($protein_calories / 4);
-            $fat_grams = round($fat_calories / 9);
+                $carb_grams = round($carb_calories / 4);
+                $protein_grams = round($protein_calories / 4);
+                $fat_grams = round($fat_calories / 9);
 
-            $macroResultHtml = "
-                <div class='tdee-intro'>Your personalized macronutrient breakdown for <strong>{$tdee_calories} calories/day</strong>:</div>
-                <div class='macro-results-grid'>
-                    <div class='macro-card protein'>
-                        <div class='macro-title'>Protein</div>
-                        <div class='macro-grams'>{$protein_grams}g</div>
-                        <div class='macro-calories'>" . round($protein_calories) . " calories</div>
+                $macroResultHtml = "
+                    <div class='tdee-intro'>Your personalized macronutrient breakdown for <strong>{$tdee_calories} calories/day</strong>:</div>
+                    <div class='macro-results-grid'>
+                        <div class='macro-card protein'>
+                            <div class='macro-title'>Protein</div>
+                            <div class='macro-grams'>{$protein_grams}g</div>
+                            <div class='macro-calories'>" . round($protein_calories) . " calories</div>
+                        </div>
+                        <div class='macro-card carbs'>
+                            <div class='macro-title'>Carbohydrates</div>
+                            <div class='macro-grams'>{$carb_grams}g</div>
+                            <div class='macro-calories'>" . round($carb_calories) . " calories</div>
+                        </div>
+                        <div class='macro-card fat'>
+                            <div class='macro-title'>Fat</div>
+                            <div class='macro-grams'>{$fat_grams}g</div>
+                            <div class='macro-calories'>" . round($fat_calories) . " calories</div>
+                        </div>
                     </div>
-                    <div class='macro-card carbs'>
-                        <div class='macro-title'>Carbohydrates</div>
-                        <div class='macro-grams'>{$carb_grams}g</div>
-                        <div class='macro-calories'>" . round($carb_calories) . " calories</div>
-                    </div>
-                    <div class='macro-card fat'>
-                        <div class='macro-title'>Fat</div>
-                        <div class='macro-grams'>{$fat_grams}g</div>
-                        <div class='macro-calories'>" . round($fat_calories) . " calories</div>
-                    </div>
-                </div>
-            ";
+                ";
+            }
         }
     }
 }
@@ -322,7 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculator_type'])) {
                 <?php if (!empty($macro_errors)): ?>
                     <div class="error-box"><strong>Please correct the following:</strong><ul><?php foreach ($macro_errors as $error): ?><li><?php echo $error; ?></li><?php endforeach; ?></ul></div>
                 <?php endif; ?>
-                <form action="#macro-calculator" method="POST">
+                <form action="#macro-calculator" method="POST" id="macro-form">
                     <input type="hidden" name="calculator_type" value="macro">
                     <div class="form-group">
                         <label for="tdee_calories">Daily Calorie Goal</label>
@@ -337,7 +360,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculator_type'])) {
                             <option value="low-carb" <?php echo (old_input('macro_plan') == 'low-carb') ? 'selected' : ''; ?>>Low-Carb (20/40/40)</option>
                             <option value="high-protein" <?php echo (old_input('macro_plan') == 'high-protein') ? 'selected' : ''; ?>>High-Protein (30/40/30)</option>
                             <option value="high-carb" <?php echo (old_input('macro_plan') == 'high-carb') ? 'selected' : ''; ?>>High-Carb / Endurance (60/20/20)</option>
+                            <option value="custom" <?php echo (old_input('macro_plan') == 'custom') ? 'selected' : ''; ?>>Custom...</option>
                         </select>
+                    </div>
+                    <div id="custom-macro-inputs" style="display: none; background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                        <p style="margin-top:0; font-weight: bold;">Enter your custom percentages:</p>
+                        <div class="height-inputs">
+                            <div class="form-group">
+                                <label for="protein_percent">Protein (%)</label>
+                                <input type="number" id="protein_percent" name="protein_percent" min="0" max="100" placeholder="e.g., 20" value="<?php echo old_input('protein_percent'); ?>">
+                            </div>
+                            <div class="form-group">
+                                <label for="carb_percent">Carbs (%)</label>
+                                <input type="number" id="carb_percent" name="carb_percent" min="0" max="100" placeholder="e.g., 50" value="<?php echo old_input('carb_percent'); ?>">
+                            </div>
+                            <div class="form-group">
+                                <label for="fat_percent">Fat (%)</label>
+                                <input type="number" id="fat_percent" name="fat_percent" min="0" max="100" placeholder="e.g., 30" value="<?php echo old_input('fat_percent'); ?>">
+                            </div>
+                        </div>
+                        <div id="percentage-error" style="color: #c62828; font-weight: bold; margin-bottom: 10px; display: none;"></div>
                     </div>
                     <button type="submit" class="button">Plan My Macros</button>
                 </form>
@@ -352,7 +394,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['calculator_type'])) {
             <p><small><strong>Disclaimer:</strong> The calculators provided are for informational and educational purposes only. This information is not intended as a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your physician or other qualified health provider with any questions you may have regarding a medical condition.</small></p>
         </footer>
     </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- Emma's Magical Macro Form Enhancer ---
+
+        const macroPlanSelect = document.getElementById('macro_plan');
+        const customInputsDiv = document.getElementById('custom-macro-inputs');
+        const macroForm = document.getElementById('macro-form');
+        const percentageErrorDiv = document.getElementById('percentage-error');
+        
+        const proteinInput = document.getElementById('protein_percent');
+        const carbInput = document.getElementById('carb_percent');
+        const fatInput = document.getElementById('fat_percent');
+
+        // Function to toggle the visibility of our special custom inputs
+        function toggleCustomInputs() {
+            if (macroPlanSelect.value === 'custom') {
+                customInputsDiv.style.display = 'block';
+            } else {
+                customInputsDiv.style.display = 'none';
+            }
+        }
+
+        // Run this once on page load, in case the form was re-populated after a server-side error
+        toggleCustomInputs();
+
+        // And listen for any changes the user makes to the dropdown
+        macroPlanSelect.addEventListener('change', toggleCustomInputs);
+
+        // A little client-side check before we bother the server, shall we?
+        macroForm.addEventListener('submit', function(event) {
+            // We only care about this if the 'custom' plan is selected
+            if (macroPlanSelect.value === 'custom') {
+                const protein = parseInt(proteinInput.value) || 0;
+                const carbs = parseInt(carbInput.value) || 0;
+                const fat = parseInt(fatInput.value) || 0;
+                const total = protein + carbs + fat;
+
+                if (total !== 100) {
+                    event.preventDefault(); // Stop the form from submitting! Naughty user.
+                    percentageErrorDiv.textContent = 'Percentages must add up to 100. Current total: ' + total + '%.';
+                    percentageErrorDiv.style.display = 'block';
+                } else {
+                    percentageErrorDiv.style.display = 'none'; // All is well, hide the error.
+                }
+            }
+        });
+    });
+    </script>
 
 </body>
 </html>
-
